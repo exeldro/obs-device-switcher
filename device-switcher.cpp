@@ -3,6 +3,7 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QMainWindow>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QVBoxLayout>
 
@@ -105,19 +106,16 @@ DeviceSwitcherDock::DeviceSwitcherDock(QWidget *parent)
 	setFloating(true);
 	hide();
 
-	//auto *dockWidgetContents = new QWidget;
-	//dockWidgetContents->setLayout(mainLayout);
-	//setWidget(dockWidgetContents);
-
 	auto scrollArea = new QScrollArea(this);
 	scrollArea->setObjectName(QStringLiteral("scrollArea"));
-	//scrollArea->setFrameShape(QFrame::StyledPanel);
-	//scrollArea->setFrameShadow(QFrame::Sunken);
-	//scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
-	scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	scrollArea->setWidgetResizable(true);
 
 	auto w = new QWidget(scrollArea);
+	QSizePolicy sizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+	sizePolicy.setHorizontalStretch(0);
+	sizePolicy.setVerticalStretch(0);
+	sizePolicy.setHeightForWidth(w->sizePolicy().hasHeightForWidth());
+	w->setSizePolicy(sizePolicy);
 	w->setLayout(mainLayout);
 	scrollArea->setWidget(w);
 
@@ -185,7 +183,10 @@ void DeviceSwitcherDock::AddDeviceSource(QString sourceName)
 
 	auto w = new QWidget(this);
 	w->setObjectName(sourceName);
+	w->setContentsMargins(0, 0, 0, 0);
+
 	auto l = new QVBoxLayout(w);
+	l->setContentsMargins(0, 0, 0, 0);
 	auto nameLabel = new QLabel(w);
 	nameLabel->setText(sourceName);
 	l->addWidget(nameLabel);
@@ -221,6 +222,62 @@ void DeviceSwitcherDock::AddDeviceSource(QString sourceName)
 			obs_data_release(settings);
 			obs_source_release(source);
 		});
+	auto bw = new QWidget(w);
+	bw->setContentsMargins(0, 0, 0, 0);
+	auto hl = new QHBoxLayout(bw);
+	hl->setMargin(0);
+	hl->setContentsMargins(0, 0, 0, 0);
+
+	auto pb = new QPushButton(bw);
+	pb->setText(obs_module_text("Properties"));
+	connect(pb, &QPushButton::clicked, [w]() {
+		auto sourceName = w->objectName();
+		auto source =
+			obs_get_source_by_name(sourceName.toUtf8().constData());
+		if (!source)
+			return;
+		obs_frontend_open_source_properties(source);
+		obs_source_release(source);
+	});
+	hl->addWidget(pb);
+
+	auto filter = new QPushButton(bw);
+	filter->setText(obs_module_text("Filters"));
+	connect(filter, &QPushButton::clicked, [w]() {
+		auto sourceName = w->objectName();
+		auto source =
+			obs_get_source_by_name(sourceName.toUtf8().constData());
+		if (!source)
+			return;
+		obs_frontend_open_source_filters(source);
+		obs_source_release(source);
+	});
+	hl->addWidget(filter);
+
+	auto restart = new QPushButton(bw);
+	restart->setText(obs_module_text("Restart"));
+	connect(restart, &QPushButton::clicked, [combo, w, settingNameString]() {
+		auto sourceName = w->objectName();
+		auto source =
+			obs_get_source_by_name(sourceName.toUtf8().constData());
+		if (!source)
+			return;
+		auto settings = obs_data_create();
+		auto us = settingNameString.toUtf8();
+		auto s = us.constData();
+		obs_data_set_string(settings, s, "");
+		obs_source_update(source, settings);
+		auto id = combo->itemData(combo->currentIndex()).toString();
+		auto uv = id.toUtf8();
+		auto v = uv.constData();
+		obs_data_set_string(settings, s, v);
+		obs_source_update(source, settings);
+		obs_data_release(settings);
+		obs_source_release(source);
+	});
+	hl->addWidget(restart);
+
+	l->addWidget(bw);
 	w->setLayout(l);
 	mainLayout->addWidget(w);
 }
