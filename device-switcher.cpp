@@ -10,6 +10,7 @@
 
 #include "version.h"
 #include "util/config-file.h"
+#include "util/platform.h"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_AUTHOR("Exeldro");
@@ -80,11 +81,27 @@ void DeviceSwitcherDock::rename_source(void *p, calldata_t *calldata)
 				  Q_ARG(QString, newDeviceName));
 }
 
+void DeviceSwitcherDock::save_source(void *p, calldata_t *calldata)
+{
+	auto source = (obs_source_t *)calldata_ptr(calldata, "source");
+	if (!is_device_source(source))
+		return;
+
+	auto dock = (DeviceSwitcherDock *)p;
+	if (!dock->config)
+		return;
+	QString deviceName = QT_UTF8(obs_source_get_name(source));
+	if (!dock->HasSourceSettings(deviceName))
+		return;
+	dock->SaveSourceSettings(source);
+}
+
 bool DeviceSwitcherDock::is_device_source(obs_source_t *source)
 {
 	auto settings = obs_source_get_settings(source);
 	if (!settings)
 		return false;
+	obs_data_release(settings);
 	if (obs_data_has_user_value(settings, "device_id") ||
 	    obs_data_has_default_value(settings, "device_id") ||
 	    obs_data_has_autoselect_value(settings, "device_id")) {
@@ -122,10 +139,234 @@ void DeviceSwitcherDock::frontend_event(enum obs_frontend_event event,
 	}
 }
 
+bool DeviceSwitcherDock::HasSourceSettings(QString sourceName)
+{
+	if (!config)
+		return false;
+	const auto array = obs_data_get_array(config, "sources");
+	if (!array)
+		return false;
+	bool found = false;
+	auto count = obs_data_array_count(array);
+	for (size_t i = 0; i < count; i++) {
+		auto item = obs_data_array_item(array, i);
+		if (!item)
+			continue;
+		auto name =
+			QString::fromUtf8(obs_data_get_string(item, "name"));
+		obs_data_release(item);
+		if (name == sourceName) {
+			found = true;
+			break;
+		}
+	}
+	obs_data_array_release(array);
+	return found;
+}
+
+void DeviceSwitcherDock::SaveSourceSettings(obs_source_t *source)
+{
+	if (!config || !source)
+		return;
+	auto array = obs_data_get_array(config, "sources");
+	if (!array) {
+		array = obs_data_array_create();
+		obs_data_set_array(config, "sources", array);
+	}
+	obs_data_t *t = nullptr;
+	auto source_name = obs_source_get_name(source);
+	auto count = obs_data_array_count(array);
+	for (size_t i = 0; i < count; i++) {
+		auto item = obs_data_array_item(array, i);
+		if (!item)
+			continue;
+		auto name = obs_data_get_string(item, "name");
+		if (strcmp(name, source_name) == 0) {
+			t = item;
+			break;
+		}
+		obs_data_release(item);
+	}
+	if (t == nullptr) {
+		t = obs_data_create();
+		obs_data_set_string(t, "name", source_name);
+		obs_data_array_push_back(array, t);
+	}
+	obs_data_set_string(t, "id", obs_source_get_unversioned_id(source));
+	obs_data_array_release(array);
+	auto s = obs_data_get_obj(t, "settings");
+	if (s == nullptr) {
+		s = obs_data_create();
+		obs_data_set_obj(t, "settings", s);
+	}
+	if (const auto settings = obs_source_get_settings(source)) {
+		obs_data_apply(s, settings);
+		obs_data_release(settings);
+	}
+	obs_data_release(s);
+	obs_data_array_t *filters = obs_data_array_create();
+	obs_source_enum_filters(source, SaveFilterSettings, filters);
+	obs_data_set_array(t, "filters", filters);
+	obs_data_array_release(filters);
+	obs_data_release(t);
+}
+
+void DeviceSwitcherDock::SaveFilterSettings(obs_source_t *source,
+					    obs_source_t *filter, void *param)
+{
+	auto array = static_cast<obs_data_array_t *>(param);
+	obs_data_t *t = nullptr;
+	auto source_name = obs_source_get_name(filter);
+	auto count = obs_data_array_count(array);
+	for (size_t i = 0; i < count; i++) {
+		auto item = obs_data_array_item(array, i);
+		if (!item)
+			continue;
+		auto name = obs_data_get_string(item, "name");
+		if (strcmp(name, source_name) == 0) {
+			t = item;
+			break;
+		}
+		obs_data_release(item);
+	}
+	if (t == nullptr) {
+		t = obs_data_create();
+		obs_data_set_string(t, "name", source_name);
+		obs_data_array_push_back(array, t);
+	}
+	obs_data_set_string(t, "id", obs_source_get_unversioned_id(filter));
+	auto s = obs_data_get_obj(t, "settings");
+	if (s == nullptr) {
+		s = obs_data_create();
+		obs_data_set_obj(t, "settings", s);
+	}
+
+	if (auto settings = obs_source_get_settings(filter)) {
+		obs_data_apply(s, settings);
+		obs_data_release(settings);
+	}
+
+	obs_data_release(s);
+}
+
+void DeviceSwitcherDock::RemoveSourceSettings(QString sourceName)
+{
+	if (!config)
+		return;
+	const auto array = obs_data_get_array(config, "sources");
+	if (!array)
+		return;
+	auto count = obs_data_array_count(array);
+	for (size_t i = 0; i < count; i++) {
+		auto item = obs_data_array_item(array, i);
+		if (!item)
+			continue;
+		auto name =
+			QString::fromUtf8(obs_data_get_string(item, "name"));
+		obs_data_release(item);
+		if (name == sourceName) {
+			obs_data_array_erase(array, i);
+			obs_data_array_release(array);
+			return;
+		}
+	}
+	obs_data_array_release(array);
+}
+
+void DeviceSwitcherDock::LoadSourceSettings(obs_source_t *source)
+{
+	if (!config || !source)
+		return;
+	auto array = obs_data_get_array(config, "sources");
+	if (!array) {
+		array = obs_data_array_create();
+		obs_data_set_array(config, "sources", array);
+	}
+	obs_data_t *t = nullptr;
+	auto source_name = obs_source_get_name(source);
+	auto count = obs_data_array_count(array);
+	for (size_t i = 0; i < count; i++) {
+		auto item = obs_data_array_item(array, i);
+		if (!item)
+			continue;
+		auto name = obs_data_get_string(item, "name");
+		if (strcmp(name, source_name) == 0) {
+			t = item;
+			break;
+		}
+		obs_data_release(item);
+	}
+	obs_data_array_release(array);
+	if (t == nullptr)
+		return;
+
+	if (strcmp(obs_data_get_string(t, "id"),
+		   obs_source_get_unversioned_id(source)) != 0) {
+		obs_data_release(t);
+		return;
+	}
+	auto s = obs_data_get_obj(t, "settings");
+	if (s) {
+		obs_source_update(source, s);
+		obs_data_release(s);
+	}
+
+	auto filters = obs_data_get_array(t, "filters");
+	if (filters) {
+		obs_source_enum_filters(source, RemoveFilter, filters);
+		auto count = obs_data_array_count(filters);
+		for (size_t i = 0; i < count; i++) {
+			auto item = obs_data_array_item(filters, i);
+			if (!item)
+				continue;
+			LoadFilter(source, item);
+			obs_data_release(item);
+		}
+		obs_data_array_release(filters);
+	}
+}
+
+void DeviceSwitcherDock::RemoveFilter(obs_source_t *source,
+				      obs_source_t *filter, void *param)
+{
+	auto array = (obs_data_array_t *)param;
+	auto source_name = obs_source_get_name(filter);
+	auto count = obs_data_array_count(array);
+	for (size_t i = 0; i < count; i++) {
+		auto item = obs_data_array_item(array, i);
+		if (!item)
+			continue;
+		auto name = obs_data_get_string(item, "name");
+		obs_data_release(item);
+		if (strcmp(name, source_name) == 0)
+			return;
+	}
+	obs_source_filter_remove(source, filter);
+}
+
+void DeviceSwitcherDock::LoadFilter(obs_source_t *parent,
+				    obs_data_t *filter_data)
+{
+	auto name = obs_data_get_string(filter_data, "name");
+	auto id = obs_data_get_string(filter_data, "id");
+	auto settings = obs_data_get_obj(filter_data, "settings");
+	auto filter = obs_source_get_filter_by_name(parent, name);
+	if (!filter) {
+		filter = obs_source_create(id, name, settings, nullptr);
+		obs_source_filter_add(parent, filter);
+		obs_source_load(filter);
+	} else {
+		obs_source_update(filter, settings);
+	}
+	obs_data_release(settings);
+	obs_source_release(filter);
+}
+
 DeviceSwitcherDock::DeviceSwitcherDock(QWidget *parent)
 	: QDockWidget(parent),
 	  mainLayout(new QVBoxLayout(this)),
-	  monitoringCombo(nullptr)
+	  monitoringCombo(nullptr),
+	  config(nullptr)
 {
 	setFeatures(DockWidgetMovable | DockWidgetFloatable);
 	setWindowTitle(QT_UTF8(obs_module_text("DeviceSwitcher")));
@@ -179,9 +420,17 @@ DeviceSwitcherDock::DeviceSwitcherDock(QWidget *parent)
 	});
 	mainLayout->addWidget(monitoringCombo);
 
+	if (char *file = obs_module_config_path("config.json")) {
+		config = obs_data_create_from_json_file(file);
+		bfree(file);
+	}
+	if (!config)
+		config = obs_data_create();
+
 	auto sh = obs_get_signal_handler();
 	signal_handler_connect(sh, "source_create", add_source, this);
 	signal_handler_connect(sh, "source_load", add_source, this);
+	signal_handler_connect(sh, "source_save", save_source, this);
 	signal_handler_connect(sh, "source_destroy", remove_source, this);
 	signal_handler_connect(sh, "source_remove", remove_source, this);
 	signal_handler_connect(sh, "source_rename", rename_source, this);
@@ -191,6 +440,19 @@ DeviceSwitcherDock::DeviceSwitcherDock(QWidget *parent)
 
 DeviceSwitcherDock::~DeviceSwitcherDock()
 {
+	if (config) {
+		if (char *file = obs_module_config_path("config.json")) {
+			if (!obs_data_save_json(config, file)) {
+				if (char *path = obs_module_config_path("")) {
+					os_mkdirs(path);
+					bfree(path);
+				}
+				obs_data_save_json(config, file);
+				bfree(file);
+			}
+			obs_data_release(config);
+		}
+	}
 	obs_frontend_remove_event_callback(frontend_event, this);
 
 	auto sh = obs_get_signal_handler();
@@ -226,16 +488,24 @@ void DeviceSwitcherDock::AddDeviceSource(QString sourceName)
 	if (!prop)
 		prop = obs_properties_get(props, "video_device_id");
 
-	if (!prop)
+	if (!prop) {
+		obs_properties_destroy(props);
 		return;
+	}
 
 	const auto propCount = obs_property_list_item_count(prop);
-	if (propCount == 0)
+	if (propCount == 0) {
+		obs_properties_destroy(props);
 		return;
+	}
+
+	LoadSourceSettings(source);
 
 	auto settings = obs_source_get_settings(source);
-	if (!settings)
+	if (!settings) {
+		obs_properties_destroy(props);
 		return;
+	}
 
 	auto settingName = obs_property_name(prop);
 	auto deviceId = obs_data_get_string(settings, settingName);
@@ -263,6 +533,8 @@ void DeviceSwitcherDock::AddDeviceSource(QString sourceName)
 			combo->setCurrentIndex(i);
 		}
 	}
+	obs_properties_destroy(props);
+
 	l->addWidget(combo);
 	auto comboIndexChanged = static_cast<void (QComboBox::*)(int)>(
 		&QComboBox::currentIndexChanged);
@@ -356,6 +628,25 @@ void DeviceSwitcherDock::AddDeviceSource(QString sourceName)
 		obs_source_release(source);
 	});
 
+	hl->addWidget(checkbox);
+
+	checkbox =
+		new QCheckBox(QString::fromUtf8(obs_module_text("Retain")), bw);
+	checkbox->setChecked(HasSourceSettings(sourceName));
+	connect(checkbox, &QCheckBox::stateChanged,
+		[this, w, checkbox](int state) {
+			auto sourceName = w->objectName();
+			if (checkbox->isChecked()) {
+				auto source = obs_get_source_by_name(
+					sourceName.toUtf8().constData());
+				if (!source)
+					return;
+				SaveSourceSettings(source);
+				obs_source_release(source);
+			} else {
+				RemoveSourceSettings(sourceName);
+			}
+		});
 	hl->addWidget(checkbox);
 
 	l->addWidget(bw);
