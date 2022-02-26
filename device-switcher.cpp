@@ -245,7 +245,7 @@ void DeviceSwitcherDock::SaveFilterSettings(obs_source_t *source,
 		obs_data_apply(s, settings);
 		obs_data_release(settings);
 	}
-
+	obs_data_release(t);
 	obs_data_release(s);
 }
 
@@ -324,6 +324,7 @@ void DeviceSwitcherDock::LoadSourceSettings(obs_source_t *source)
 		}
 		obs_data_array_release(filters);
 	}
+	obs_data_release(t);
 }
 
 void DeviceSwitcherDock::RemoveFilter(obs_source_t *source,
@@ -450,8 +451,8 @@ DeviceSwitcherDock::~DeviceSwitcherDock()
 				obs_data_save_json(config, file);
 				bfree(file);
 			}
-			obs_data_release(config);
 		}
+		obs_data_release(config);
 	}
 	obs_frontend_remove_event_callback(frontend_event, this);
 

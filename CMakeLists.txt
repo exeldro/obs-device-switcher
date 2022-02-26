@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(device-switcher VERSION 0.1.0)
+project(device-switcher VERSION 0.1.1)
 set(PROJECT_FULL_NAME "Device Switcher")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
