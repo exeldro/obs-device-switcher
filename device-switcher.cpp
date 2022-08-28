@@ -214,6 +214,7 @@ void DeviceSwitcherDock::SaveSourceSettings(obs_source_t *source)
 void DeviceSwitcherDock::SaveFilterSettings(obs_source_t *source,
 					    obs_source_t *filter, void *param)
 {
+	UNUSED_PARAMETER(source);
 	auto array = static_cast<obs_data_array_t *>(param);
 	obs_data_t *t = nullptr;
 	auto source_name = obs_source_get_name(filter);
@@ -531,7 +532,7 @@ void DeviceSwitcherDock::AddDeviceSource(QString sourceName)
 		auto dId = obs_property_list_item_string(prop, i);
 		combo->addItem(valName, dId);
 		if (strcmp(dId, deviceId) == 0) {
-			combo->setCurrentIndex(i);
+			combo->setCurrentIndex((int)i);
 		}
 	}
 	obs_properties_destroy(props);
@@ -560,7 +561,6 @@ void DeviceSwitcherDock::AddDeviceSource(QString sourceName)
 	auto bw = new QWidget(w);
 	bw->setContentsMargins(0, 0, 0, 0);
 	auto hl = new QHBoxLayout(bw);
-	hl->setMargin(0);
 	hl->setContentsMargins(0, 0, 0, 0);
 
 	auto pb = new QPushButton(bw);
@@ -617,6 +617,7 @@ void DeviceSwitcherDock::AddDeviceSource(QString sourceName)
 	checkbox->setChecked(obs_source_get_monitoring_type(source) !=
 			     OBS_MONITORING_TYPE_NONE);
 	connect(checkbox, &QCheckBox::stateChanged, [w, checkbox](int state) {
+		UNUSED_PARAMETER(state);
 		auto sourceName = w->objectName();
 		auto source =
 			obs_get_source_by_name(sourceName.toUtf8().constData());
@@ -636,6 +637,7 @@ void DeviceSwitcherDock::AddDeviceSource(QString sourceName)
 	checkbox->setChecked(HasSourceSettings(sourceName));
 	connect(checkbox, &QCheckBox::stateChanged,
 		[this, w, checkbox](int state) {
+			UNUSED_PARAMETER(state);
 			auto sourceName = w->objectName();
 			if (checkbox->isChecked()) {
 				auto source = obs_get_source_by_name(
