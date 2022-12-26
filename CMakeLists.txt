@@ -18,8 +18,10 @@ add_library(${PROJECT_NAME} MODULE)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
 
 target_sources(${PROJECT_NAME} PRIVATE
-device-switcher.cpp
+	device-switcher.cpp
+	volume-meter.cpp
 	device-switcher.hpp
+	volume-meter.hpp
 	version.h)
 
 if(BUILD_OUT_OF_TREE)

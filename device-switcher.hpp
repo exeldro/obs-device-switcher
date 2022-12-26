@@ -1,20 +1,25 @@
 #pragma once
 #include "obs.h"
 #include <obs-frontend-api.h>
+#include <QCheckBox>
 #include <qcombobox.h>
 #include <QDockWidget>
+#include <qpushbutton.h>
 #include <QTextEdit>
 #include <QVBoxLayout>
 
 #include "obs.hpp"
+#include "volume-meter.hpp"
 
 class DeviceSwitcherDock : public QDockWidget {
 	Q_OBJECT
 
 private:
 	QVBoxLayout *mainLayout;
-	QComboBox *monitoringCombo;
-	obs_data_t *config;
+	QComboBox *monitoringCombo = nullptr;
+	obs_data_t *retain_config = nullptr;
+	config_t *show_config = nullptr;
+	QPushButton *virtualCamera = nullptr;
 	static void add_source(void *p, calldata_t *calldata);
 	static void remove_source(void *p, calldata_t *calldata);
 	static void rename_source(void *p, calldata_t *calldata);
@@ -33,6 +38,9 @@ private:
 	void RemoveSourceSettings(QString sourceName);
 	void LoadSourceSettings(obs_source_t *source);
 	void LoadFilter(obs_source_t *parent, obs_data_t *filter_data);
+
+	friend class DeviceWidget;
+
 private slots:
 	void AddDeviceSource(QString sourceName);
 	void RemoveDeviceSource(QString sourceName);
@@ -41,4 +49,46 @@ private slots:
 public:
 	DeviceSwitcherDock(QWidget *parent = nullptr);
 	~DeviceSwitcherDock();
+};
+
+class DeviceWidget : public QWidget {
+	Q_OBJECT
+private:
+	obs_weak_source_t *source;
+	DeviceSwitcherDock *dock;
+	QSlider *slider = nullptr;
+	QCheckBox *mute = nullptr;
+
+	bool GetShowSetting(config_t *config, const char *st, const char *sn,
+			    const char *setting);
+	void UpdateVolControls();
+	static void OBSVolume(void *data, calldata_t *call_data);
+	static void OBSMute(void *data, calldata_t *call_data);
+
+private slots:
+	void SliderChanged(int vol);
+	void SetOutputVolume(double volume);
+	void SetMute(bool muted);
+
+public:
+	DeviceWidget(obs_source_t *source, obs_property_t *device_prop,
+		     config_t *show_config, DeviceSwitcherDock *parent);
+
+	~DeviceWidget();
+};
+
+class SliderIgnoreScroll : public QSlider {
+	Q_OBJECT
+
+public:
+	SliderIgnoreScroll(QWidget *parent = nullptr);
+	SliderIgnoreScroll(Qt::Orientation orientation,
+			   QWidget *parent = nullptr);
+
+protected:
+	virtual void wheelEvent(QWheelEvent *event) override;
+};
+
+class MuteCheckBox : public QCheckBox {
+	Q_OBJECT
 };
