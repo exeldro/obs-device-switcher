@@ -80,9 +80,14 @@ void DeviceSwitcherDock::remove_source(void *p, calldata_t *calldata)
 
 void DeviceSwitcherDock::rename_source(void *p, calldata_t *calldata)
 {
-	QString prevDeviceName =
-		QT_UTF8(calldata_string(calldata, "prev_name"));
-	QString newDeviceName = QT_UTF8(calldata_string(calldata, "new_name"));
+	auto prev_name = calldata_string(calldata, "prev_name");
+	auto new_name = calldata_string(calldata, "new_name");
+	if (!prev_name || !new_name)
+		return;
+	QString prevDeviceName = QT_UTF8(prev_name);
+	QString newDeviceName = QT_UTF8(new_name);
+	if (prevDeviceName.isEmpty() || newDeviceName.isEmpty())
+		return;
 	QMetaObject::invokeMethod((DeviceSwitcherDock *)p, "RenameDeviceSource",
 				  Qt::QueuedConnection,
 				  Q_ARG(QString, prevDeviceName),
@@ -642,12 +647,14 @@ void DeviceSwitcherDock::RenameDeviceSource(QString prevDeviceName,
 		if (!item)
 			continue;
 		auto *w = item->widget();
-		if (w->objectName() == prevDeviceName) {
+		if (w && w->objectName() == prevDeviceName) {
 			w->setObjectName(newDeviceName);
-			auto lw = w->layout()->itemAt(0)->widget();
-			auto l = dynamic_cast<QLabel *>(lw);
-			if (l) {
-				l->setText(newDeviceName);
+			auto subItem = w->layout()->itemAt(0);
+			if (subItem) {
+				auto lw = subItem->widget();
+				auto l = dynamic_cast<QLabel *>(lw);
+				if (l)
+					l->setText(newDeviceName);
 			}
 			break;
 		}
