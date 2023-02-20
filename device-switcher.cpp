@@ -149,14 +149,25 @@ void DeviceSwitcherDock::frontend_event(enum obs_frontend_event event,
 			dock->monitoringCombo->setCurrentText(
 				QString::fromUtf8(name));
 		}
+	} else if (event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED) {
+		if (obs_frontend_virtualcam_active()) {
+			obs_frontend_stop_virtualcam();
+			const auto dock =
+				static_cast<DeviceSwitcherDock *>(data);
+			dock->restart_virtual_camera = true;
+		}
 	} else if (event == OBS_FRONTEND_EVENT_VIRTUALCAM_STARTED) {
 		const auto dock = static_cast<DeviceSwitcherDock *>(data);
 		if (dock->virtualCamera)
 			dock->virtualCamera->setChecked(true);
+		dock->restart_virtual_camera = false;
 	} else if (event == OBS_FRONTEND_EVENT_VIRTUALCAM_STOPPED) {
 		const auto dock = static_cast<DeviceSwitcherDock *>(data);
 		if (dock->virtualCamera)
 			dock->virtualCamera->setChecked(false);
+		if (dock->restart_virtual_camera) {
+			obs_frontend_start_virtualcam();
+		}
 	}
 }
 

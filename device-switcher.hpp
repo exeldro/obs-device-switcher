@@ -41,6 +41,8 @@ private:
 
 	friend class DeviceWidget;
 
+	bool restart_virtual_camera = false;
+
 private slots:
 	void AddDeviceSource(QString sourceName);
 	void RemoveDeviceSource(QString sourceName);
