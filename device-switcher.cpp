@@ -805,14 +805,17 @@ DeviceWidget::DeviceWidget(obs_source_t *source, obs_property_t *prop,
 				auto settings = obs_source_get_settings(source);
 
 				auto us = settingNameString.toUtf8();
-				auto s = us.constData();
-				auto v = obs_data_get_string(settings, s);
-				obs_data_set_string(settings, s, "");
+				std::string s = us.constData();
+				std::string v = obs_data_get_string(settings, s.c_str());
+				obs_data_set_string(settings, s.c_str(), "");
 				obs_source_update(source, nullptr);
-				obs_data_set_string(settings, s, v);
-				obs_source_update(source, nullptr);
-				obs_data_release(settings);
-				obs_source_release(source);
+				QTimer::singleShot(100, [source, settings, s, v] {
+					obs_data_set_string(settings, s.c_str(),
+							    v.c_str());
+					obs_source_update(source, nullptr);
+					obs_data_release(settings);
+					obs_source_release(source);
+				});
 			});
 		hl->addWidget(restart);
 	}
