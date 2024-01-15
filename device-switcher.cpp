@@ -574,8 +574,8 @@ DeviceSwitcherDock::~DeviceSwitcherDock()
 				}
 				obs_data_save_json_safe(retain_config, file,
 							"tmp", "bak");
-				bfree(file);
 			}
+			bfree(file);
 		}
 		obs_data_release(retain_config);
 	}
